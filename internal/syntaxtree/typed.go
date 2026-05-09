@@ -43,7 +43,7 @@ func LoadTypedFile(path string) (*TypedFile, error) {
 		Dir: filepath.Dir(absolutePath),
 	}
 
-	pkgs, err := packages.Load(cfg, fmt.Sprintf("file=%s", absolutePath))
+	pkgs, err := packages.Load(cfg, absolutePath)
 	if err != nil {
 		return nil, fmt.Errorf("load package: %w", err)
 	}

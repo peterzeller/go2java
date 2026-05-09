@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -41,13 +42,14 @@ func TestExamplesHaveSameGoAndJavaOutput(t *testing.T) {
 			assertMatchesGoldenJava(t, example, javaCode)
 
 			tmp := t.TempDir()
-			mainJava := filepath.Join(tmp, "Main.java")
+			javaMain := javaEntryPoint(t, javaCode)
+			mainJava := filepath.Join(tmp, javaMain+".java")
 			if err := os.WriteFile(mainJava, []byte(javaCode), 0o600); err != nil {
 				t.Fatal(err)
 			}
 
-			runCmd(t, tmp, "javac", "Main.java")
-			javaOut := runCmd(t, tmp, "java", "Main")
+			runCmd(t, tmp, "javac", filepath.Base(mainJava))
+			javaOut := runCmd(t, tmp, "java", javaMain)
 
 			if normalize(goOut) != normalize(javaOut) {
 				t.Fatalf("output mismatch\ngo: %q\njava: %q", goOut, javaOut)
@@ -78,6 +80,16 @@ func runCmd(t *testing.T, dir, name string, args ...string) string {
 		t.Fatalf("%s %v failed: %v\n%s", name, args, err, out)
 	}
 	return string(out)
+}
+
+func javaEntryPoint(t *testing.T, src string) string {
+	t.Helper()
+	re := regexp.MustCompile(`public\s+(?:class|record)\s+([A-Za-z_][A-Za-z0-9_]*)`)
+	m := re.FindStringSubmatch(src)
+	if len(m) < 2 {
+		t.Fatal("could not find public Java type name")
+	}
+	return m[1]
 }
 
 func normalize(s string) string { return strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n")) }

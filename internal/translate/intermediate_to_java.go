@@ -9,9 +9,22 @@ import (
 
 func IntermediateToJava(p *intermediate.Program) (string, error) {
 	var b strings.Builder
+	if len(p.Records) == 1 {
+		rec := p.Records[0]
+		if err := writeRecord(&b, rec, p.Functions); err != nil {
+			return "", err
+		}
+		return b.String(), nil
+	}
+
 	b.WriteString("public class Main {\n")
+	for _, rec := range p.Records {
+		if err := writeNestedRecord(&b, rec); err != nil {
+			return "", err
+		}
+	}
 	for _, fn := range p.Functions {
-		if err := writeFunction(&b, fn); err != nil {
+		if err := writeFunction(&b, fn, true); err != nil {
 			return "", err
 		}
 	}
@@ -19,9 +32,53 @@ func IntermediateToJava(p *intermediate.Program) (string, error) {
 	return b.String(), nil
 }
 
-func writeFunction(b *strings.Builder, fn *intermediate.Function) error {
-	static := "static "
-	b.WriteString("    public " + static + string(fn.ReturnType) + " " + fn.Name + "(")
+func writeRecord(b *strings.Builder, rec *intermediate.Record, extraFunctions []*intermediate.Function) error {
+	b.WriteString("public record " + rec.Name + "(")
+	for i, f := range rec.Fields {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(string(f.Type) + " " + f.Name)
+	}
+	b.WriteString(") {\n")
+	for _, m := range rec.Methods {
+		if err := writeFunction(b, m, false); err != nil {
+			return err
+		}
+	}
+	for _, fn := range extraFunctions {
+		if err := writeFunction(b, fn, true); err != nil {
+			return err
+		}
+	}
+	b.WriteString("}\n")
+	return nil
+}
+
+func writeNestedRecord(b *strings.Builder, rec *intermediate.Record) error {
+	b.WriteString("    public record " + rec.Name + "(")
+	for i, f := range rec.Fields {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(string(f.Type) + " " + f.Name)
+	}
+	b.WriteString(") {\n")
+	for _, m := range rec.Methods {
+		if err := writeFunction(b, m, false); err != nil {
+			return err
+		}
+	}
+	b.WriteString("    }\n")
+	return nil
+}
+
+func writeFunction(b *strings.Builder, fn *intermediate.Function, static bool) error {
+	staticPrefix := ""
+	if static {
+		staticPrefix = "static "
+	}
+	b.WriteString("    public " + staticPrefix + string(fn.ReturnType) + " " + fn.Name + "(")
 	if fn.Name == "main" && fn.ReturnType == intermediate.TypeVoid && len(fn.Parameters) == 0 {
 		b.WriteString("String[] args")
 	} else {
@@ -34,7 +91,7 @@ func writeFunction(b *strings.Builder, fn *intermediate.Function) error {
 	}
 	b.WriteString(") {\n")
 	for _, st := range fn.Body {
-		s, err := stmtToJava(st)
+		s, err := stmtToJava(st, fn.ReceiverName)
 		if err != nil {
 			return err
 		}
@@ -46,16 +103,16 @@ func writeFunction(b *strings.Builder, fn *intermediate.Function) error {
 	return nil
 }
 
-func stmtToJava(st intermediate.Stmt) (string, error) {
+func stmtToJava(st intermediate.Stmt, receiverName string) (string, error) {
 	switch s := st.(type) {
 	case *intermediate.ExprStmt:
-		e, err := exprToJava(s.Expr)
+		e, err := exprToJava(s.Expr, receiverName)
 		if err != nil {
 			return "", err
 		}
 		return e + ";", nil
 	case *intermediate.AssignStmt:
-		e, err := exprToJava(s.Value)
+		e, err := exprToJava(s.Value, receiverName)
 		if err != nil {
 			return "", err
 		}
@@ -67,20 +124,20 @@ func stmtToJava(st intermediate.Stmt) (string, error) {
 		if s.Value == nil {
 			return "return;", nil
 		}
-		e, err := exprToJava(s.Value)
+		e, err := exprToJava(s.Value, receiverName)
 		if err != nil {
 			return "", err
 		}
 		return "return " + e + ";", nil
 	case *intermediate.IfStmt:
-		c, err := exprToJava(s.Cond)
+		c, err := exprToJava(s.Cond, receiverName)
 		if err != nil {
 			return "", err
 		}
 		var b strings.Builder
 		b.WriteString("if (" + c + ") {\n")
 		for _, st := range s.Then {
-			line, err := stmtToJava(st)
+			line, err := stmtToJava(st, receiverName)
 			if err != nil {
 				return "", err
 			}
@@ -90,7 +147,7 @@ func stmtToJava(st intermediate.Stmt) (string, error) {
 		if len(s.Else) > 0 {
 			b.WriteString(" else {\n")
 			for _, st := range s.Else {
-				line, err := stmtToJava(st)
+				line, err := stmtToJava(st, receiverName)
 				if err != nil {
 					return "", err
 				}
@@ -100,14 +157,14 @@ func stmtToJava(st intermediate.Stmt) (string, error) {
 		}
 		return b.String(), nil
 	case *intermediate.ForStmt:
-		c, err := exprToJava(s.Cond)
+		c, err := exprToJava(s.Cond, receiverName)
 		if err != nil {
 			return "", err
 		}
 		var b strings.Builder
 		b.WriteString("while (" + c + ") {\n")
 		for _, st := range s.Body {
-			line, err := stmtToJava(st)
+			line, err := stmtToJava(st, receiverName)
 			if err != nil {
 				return "", err
 			}
@@ -120,7 +177,7 @@ func stmtToJava(st intermediate.Stmt) (string, error) {
 	}
 }
 
-func exprToJava(ex intermediate.Expr) (string, error) {
+func exprToJava(ex intermediate.Expr, receiverName string) (string, error) {
 	switch e := ex.(type) {
 	case *intermediate.IntLiteral:
 		return e.Value, nil
@@ -133,18 +190,40 @@ func exprToJava(ex intermediate.Expr) (string, error) {
 		return "false", nil
 	case *intermediate.IdentExpr:
 		return e.Name, nil
+	case *intermediate.SelectorExpr:
+		if id, ok := e.Target.(*intermediate.IdentExpr); ok && id.Name == receiverName {
+			return e.Field + "()", nil
+		}
+		t, err := exprToJava(e.Target, receiverName)
+		if err != nil {
+			return "", err
+		}
+		return t + "." + e.Field, nil
 	case *intermediate.BinaryExpr:
-		l, _ := exprToJava(e.Left)
-		r, _ := exprToJava(e.Right)
+		l, _ := exprToJava(e.Left, receiverName)
+		r, _ := exprToJava(e.Right, receiverName)
 		return fmt.Sprintf("(%s %s %s)", l, e.Op, r), nil
+	case *intermediate.CompositeLiteral:
+		args := make([]string, 0, len(e.Args))
+		for _, a := range e.Args {
+			aa, err := exprToJava(a, receiverName)
+			if err != nil {
+				return "", err
+			}
+			args = append(args, aa)
+		}
+		return fmt.Sprintf("new %s(%s)", e.TypeName, strings.Join(args, ", ")), nil
 	case *intermediate.CallExpr:
-		name := e.Func
+		name, err := exprToJava(e.Func, receiverName)
+		if err != nil {
+			return "", err
+		}
 		if name == "fmt.Println" {
 			name = "System.out.println"
 		}
 		args := make([]string, 0, len(e.Args))
 		for _, a := range e.Args {
-			aa, err := exprToJava(a)
+			aa, err := exprToJava(a, receiverName)
 			if err != nil {
 				return "", err
 			}
