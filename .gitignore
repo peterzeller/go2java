@@ -1,0 +1,16 @@
+# Build outputs
+/bin/
+/dist/
+*.exe
+*.test
+
+# Go workspace and coverage artifacts
+/vendor/
+coverage.out
+*.coverprofile
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
