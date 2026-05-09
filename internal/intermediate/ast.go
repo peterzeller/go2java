@@ -3,19 +3,29 @@ package intermediate
 // Program is a language-neutral AST carrying both Go and Java-friendly constructs.
 type Program struct {
 	PackageName string
+	Records     []*Record
 	Functions   []*Function
 }
 
+type Record struct {
+	Name    string
+	Fields  []Parameter
+	Methods []*Function
+}
+
 type Function struct {
-	Name       string
-	Parameters []Parameter
-	ReturnType Type
-	Body       []Stmt
+	Name         string
+	Parameters   []Parameter
+	ReturnType   Type
+	Body         []Stmt
+	ReceiverName string
+	ReceiverType Type
 }
 
 type Parameter struct {
-	Name string
-	Type Type
+	Name   string
+	Type   Type
+	Public bool
 }
 
 type Type string
@@ -43,6 +53,14 @@ type AssignStmt struct {
 	Type  Type
 	Value Expr
 }
+
+type FieldAssignStmt struct {
+	Target Expr
+	Field  string
+	Value  Expr
+}
+
+func (*FieldAssignStmt) isStmt() {}
 
 func (*AssignStmt) isStmt() {}
 
@@ -72,6 +90,13 @@ type IdentExpr struct{ Name string }
 
 func (*IdentExpr) isExpr() {}
 
+type SelectorExpr struct {
+	Target Expr
+	Field  string
+}
+
+func (*SelectorExpr) isExpr() {}
+
 type IntLiteral struct{ Value string }
 
 func (*IntLiteral) isExpr() {}
@@ -84,8 +109,15 @@ type BoolLiteral struct{ Value bool }
 
 func (*BoolLiteral) isExpr() {}
 
+type CompositeLiteral struct {
+	TypeName string
+	Args     []Expr
+}
+
+func (*CompositeLiteral) isExpr() {}
+
 type CallExpr struct {
-	Func string
+	Func Expr
 	Args []Expr
 }
 

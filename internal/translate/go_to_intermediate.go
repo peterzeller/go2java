@@ -12,21 +12,71 @@ import (
 func GoToIntermediate(tree *syntaxtree.TypedFile) (*intermediate.Program, error) {
 	program := &intermediate.Program{PackageName: tree.File.Name.Name}
 	for _, decl := range tree.File.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
+		switch d := decl.(type) {
+		case *ast.GenDecl:
+			if d.Tok != token.TYPE {
+				continue
+			}
+			recs, err := lowerTypeDecl(d)
+			if err != nil {
+				return nil, err
+			}
+			program.Records = append(program.Records, recs...)
+		case *ast.FuncDecl:
+			irFn, err := lowerFunc(d)
+			if err != nil {
+				return nil, err
+			}
+			program.Functions = append(program.Functions, irFn)
+		}
+	}
+	moveMethodsIntoRecords(program)
+	return program, nil
+}
+
+func lowerTypeDecl(d *ast.GenDecl) ([]*intermediate.Record, error) {
+	var out []*intermediate.Record
+	for _, spec := range d.Specs {
+		ts, ok := spec.(*ast.TypeSpec)
 		if !ok {
 			continue
 		}
-		irFn, err := lowerFunc(fn)
-		if err != nil {
-			return nil, err
+		st, ok := ts.Type.(*ast.StructType)
+		if !ok {
+			continue
 		}
-		program.Functions = append(program.Functions, irFn)
+		rec := &intermediate.Record{Name: ts.Name.Name}
+		for _, field := range st.Fields.List {
+			t, err := lowerType(field.Type)
+			if err != nil {
+				return nil, err
+			}
+			for _, name := range field.Names {
+				rec.Fields = append(rec.Fields, intermediate.Parameter{Name: name.Name, Type: t, Public: ast.IsExported(name.Name)})
+			}
+		}
+		out = append(out, rec)
 	}
-	return program, nil
+	return out, nil
 }
 
 func lowerFunc(fn *ast.FuncDecl) (*intermediate.Function, error) {
 	irFn := &intermediate.Function{Name: fn.Name.Name, ReturnType: intermediate.TypeVoid}
+	if fn.Recv != nil && len(fn.Recv.List) == 1 {
+		recv := fn.Recv.List[0]
+		recvType := recv.Type
+		if star, ok := recvType.(*ast.StarExpr); ok {
+			recvType = star.X
+		}
+		t, err := lowerType(recvType)
+		if err != nil {
+			return nil, err
+		}
+		irFn.ReceiverType = t
+		if len(recv.Names) == 1 {
+			irFn.ReceiverName = recv.Names[0].Name
+		}
+	}
 	if fn.Type.Params != nil {
 		for _, field := range fn.Type.Params.List {
 			typ, err := lowerType(field.Type)
@@ -71,11 +121,12 @@ func lowerType(expr ast.Expr) (intermediate.Type, error) {
 	case "bool":
 		return intermediate.TypeBool, nil
 	default:
-		return "", fmt.Errorf("unsupported type %q", id.Name)
+		return intermediate.Type(id.Name), nil
 	}
 }
 
 func lowerStmt(st ast.Stmt) (intermediate.Stmt, error) {
+	// unchanged sections omitted for brevity in this file rewrite
 	switch s := st.(type) {
 	case *ast.ExprStmt:
 		ex, err := lowerExpr(s.X)
@@ -87,19 +138,26 @@ func lowerStmt(st ast.Stmt) (intermediate.Stmt, error) {
 		if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
 			return nil, fmt.Errorf("only single assignment supported")
 		}
-		lhs, ok := s.Lhs[0].(*ast.Ident)
-		if !ok {
-			return nil, fmt.Errorf("unsupported lhs %T", s.Lhs[0])
-		}
 		rhs, err := lowerExpr(s.Rhs[0])
 		if err != nil {
 			return nil, err
 		}
-		typ := intermediate.Type("")
-		if s.Tok == token.DEFINE {
-			typ = intermediate.TypeInt
+		if lhs, ok := s.Lhs[0].(*ast.Ident); ok {
+			typ := intermediate.Type("")
+			if s.Tok == token.DEFINE {
+				typ = "var"
+			}
+			return &intermediate.AssignStmt{Name: lhs.Name, Type: typ, Value: rhs}, nil
 		}
-		return &intermediate.AssignStmt{Name: lhs.Name, Type: typ, Value: rhs}, nil
+		if lhs, ok := s.Lhs[0].(*ast.SelectorExpr); ok {
+			t, err := lowerExpr(lhs.X)
+			if err != nil {
+				return nil, err
+			}
+			return &intermediate.FieldAssignStmt{Target: t, Field: lhs.Sel.Name, Value: rhs}, nil
+		}
+		return nil, fmt.Errorf("unsupported lhs %T", s.Lhs[0])
+
 	case *ast.ReturnStmt:
 		if len(s.Results) == 0 {
 			return &intermediate.ReturnStmt{}, nil
@@ -188,7 +246,7 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 		}
 		return &intermediate.BinaryExpr{Op: e.Op.String(), Left: l, Right: r}, nil
 	case *ast.CallExpr:
-		name, err := callName(e.Fun)
+		fn, err := lowerExpr(e.Fun)
 		if err != nil {
 			return nil, err
 		}
@@ -200,22 +258,49 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 			}
 			args = append(args, aa)
 		}
-		return &intermediate.CallExpr{Func: name, Args: args}, nil
+		return &intermediate.CallExpr{Func: fn, Args: args}, nil
+	case *ast.SelectorExpr:
+		t, err := lowerExpr(e.X)
+		if err != nil {
+			return nil, err
+		}
+		return &intermediate.SelectorExpr{Target: t, Field: e.Sel.Name}, nil
+	case *ast.CompositeLit:
+		name, ok := e.Type.(*ast.Ident)
+		if !ok {
+			return nil, fmt.Errorf("unsupported composite type %T", e.Type)
+		}
+		args := make([]intermediate.Expr, 0, len(e.Elts))
+		for _, elt := range e.Elts {
+			expr := elt
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				expr = kv.Value
+			}
+			v, err := lowerExpr(expr)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, v)
+		}
+		return &intermediate.CompositeLiteral{TypeName: name.Name, Args: args}, nil
 	}
 	return nil, fmt.Errorf("unsupported expression %T", ex)
 }
 
-func callName(fun ast.Expr) (string, error) {
-	switch f := fun.(type) {
-	case *ast.Ident:
-		return f.Name, nil
-	case *ast.SelectorExpr:
-		x, ok := f.X.(*ast.Ident)
-		if !ok {
-			return "", fmt.Errorf("unsupported selector")
-		}
-		return x.Name + "." + f.Sel.Name, nil
-	default:
-		return "", fmt.Errorf("unsupported call target %T", fun)
+func moveMethodsIntoRecords(p *intermediate.Program) {
+	byName := map[string]*intermediate.Record{}
+	for _, r := range p.Records {
+		byName[r.Name] = r
 	}
+	var fns []*intermediate.Function
+	for _, fn := range p.Functions {
+		if fn.ReceiverType != "" {
+			if rec := byName[string(fn.ReceiverType)]; rec != nil {
+				rec.Methods = append(rec.Methods, fn)
+				continue
+			}
+		}
+		fns = append(fns, fn)
+	}
+	p.Functions = fns
 }
