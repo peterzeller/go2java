@@ -52,7 +52,7 @@ func lowerTypeDecl(d *ast.GenDecl) ([]*intermediate.Record, error) {
 				return nil, err
 			}
 			for _, name := range field.Names {
-				rec.Fields = append(rec.Fields, intermediate.Parameter{Name: name.Name, Type: t})
+				rec.Fields = append(rec.Fields, intermediate.Parameter{Name: name.Name, Type: t, Public: ast.IsExported(name.Name)})
 			}
 		}
 		out = append(out, rec)
@@ -64,7 +64,11 @@ func lowerFunc(fn *ast.FuncDecl) (*intermediate.Function, error) {
 	irFn := &intermediate.Function{Name: fn.Name.Name, ReturnType: intermediate.TypeVoid}
 	if fn.Recv != nil && len(fn.Recv.List) == 1 {
 		recv := fn.Recv.List[0]
-		t, err := lowerType(recv.Type)
+		recvType := recv.Type
+		if star, ok := recvType.(*ast.StarExpr); ok {
+			recvType = star.X
+		}
+		t, err := lowerType(recvType)
 		if err != nil {
 			return nil, err
 		}
@@ -134,19 +138,26 @@ func lowerStmt(st ast.Stmt) (intermediate.Stmt, error) {
 		if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
 			return nil, fmt.Errorf("only single assignment supported")
 		}
-		lhs, ok := s.Lhs[0].(*ast.Ident)
-		if !ok {
-			return nil, fmt.Errorf("unsupported lhs %T", s.Lhs[0])
-		}
 		rhs, err := lowerExpr(s.Rhs[0])
 		if err != nil {
 			return nil, err
 		}
-		typ := intermediate.Type("")
-		if s.Tok == token.DEFINE {
-			typ = "var"
+		if lhs, ok := s.Lhs[0].(*ast.Ident); ok {
+			typ := intermediate.Type("")
+			if s.Tok == token.DEFINE {
+				typ = "var"
+			}
+			return &intermediate.AssignStmt{Name: lhs.Name, Type: typ, Value: rhs}, nil
 		}
-		return &intermediate.AssignStmt{Name: lhs.Name, Type: typ, Value: rhs}, nil
+		if lhs, ok := s.Lhs[0].(*ast.SelectorExpr); ok {
+			t, err := lowerExpr(lhs.X)
+			if err != nil {
+				return nil, err
+			}
+			return &intermediate.FieldAssignStmt{Target: t, Field: lhs.Sel.Name, Value: rhs}, nil
+		}
+		return nil, fmt.Errorf("unsupported lhs %T", s.Lhs[0])
+
 	case *ast.ReturnStmt:
 		if len(s.Results) == 0 {
 			return &intermediate.ReturnStmt{}, nil

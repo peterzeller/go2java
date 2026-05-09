@@ -23,8 +23,9 @@ type Function struct {
 }
 
 type Parameter struct {
-	Name string
-	Type Type
+	Name   string
+	Type   Type
+	Public bool
 }
 
 type Type string
@@ -52,6 +53,14 @@ type AssignStmt struct {
 	Type  Type
 	Value Expr
 }
+
+type FieldAssignStmt struct {
+	Target Expr
+	Field  string
+	Value  Expr
+}
+
+func (*FieldAssignStmt) isStmt() {}
 
 func (*AssignStmt) isStmt() {}
 
