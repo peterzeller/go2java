@@ -8,6 +8,7 @@
 - Translate Go AST into an intermediate AST (Go+Java friendly).
 - Print intermediate AST as Java source code.
 - End-to-end example tests that run both Go and Java and compare outputs.
+- Golden translated Java files stored under `translated/`.
 
 ## Supported Subset (current)
 
@@ -22,6 +23,7 @@
 .
 ├── cmd/go2java/            # CLI entry point
 ├── examples/               # Go example files used for e2e translation tests
+├── translated/             # Checked-in translated Java files for examples
 ├── internal/intermediate/  # Intermediate AST nodes
 ├── internal/syntaxtree/    # Typed Go syntax tree loading
 ├── internal/translate/     # Go->IR and IR->Java translation
@@ -30,8 +32,16 @@
 
 ## Usage
 
+Translate one file and print Java to stdout:
+
 ```sh
 go run ./cmd/go2java ./examples/hello.go
+```
+
+Regenerate Java files for all examples:
+
+```sh
+go run ./cmd/go2java -write
 ```
 
 ## Tests
@@ -39,3 +49,5 @@ go run ./cmd/go2java ./examples/hello.go
 ```sh
 go test ./...
 ```
+
+If translated output diverges from `translated/*.java`, tests fail and print the regenerate command.

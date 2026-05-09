@@ -38,6 +38,8 @@ func TestExamplesHaveSameGoAndJavaOutput(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			assertMatchesGoldenJava(t, example, javaCode)
+
 			tmp := t.TempDir()
 			mainJava := filepath.Join(tmp, "Main.java")
 			if err := os.WriteFile(mainJava, []byte(javaCode), 0o600); err != nil {
@@ -51,6 +53,19 @@ func TestExamplesHaveSameGoAndJavaOutput(t *testing.T) {
 				t.Fatalf("output mismatch\ngo: %q\njava: %q", goOut, javaOut)
 			}
 		})
+	}
+}
+
+func assertMatchesGoldenJava(t *testing.T, goPath, generated string) {
+	t.Helper()
+	base := strings.TrimSuffix(filepath.Base(goPath), ".go")
+	goldenPath := filepath.Join("..", "..", "translated", base+".java")
+	wantBytes, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden java %s: %v\nregenerate with: go run ./cmd/go2java -write", goldenPath, err)
+	}
+	if normalize(string(wantBytes)) != normalize(generated) {
+		t.Fatalf("translated java differs from %s\nregenerate with: go run ./cmd/go2java -write\n--- expected ---\n%s\n--- generated ---\n%s", goldenPath, string(wantBytes), generated)
 	}
 }
 
