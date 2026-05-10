@@ -109,6 +109,16 @@ func lowerFunc(fn *ast.FuncDecl) (*intermediate.Function, error) {
 }
 
 func lowerType(expr ast.Expr) (intermediate.Type, error) {
+	if arr, ok := expr.(*ast.ArrayType); ok {
+		if arr.Len != nil {
+			return "", fmt.Errorf("only slices supported, not arrays")
+		}
+		et, err := lowerType(arr.Elt)
+		if err != nil {
+			return "", err
+		}
+		return intermediate.Type("java.util.List<" + boxedType(et) + ">"), nil
+	}
 	id, ok := expr.(*ast.Ident)
 	if !ok {
 		return "", fmt.Errorf("unsupported type %T", expr)
@@ -122,6 +132,17 @@ func lowerType(expr ast.Expr) (intermediate.Type, error) {
 		return intermediate.TypeBool, nil
 	default:
 		return intermediate.Type(id.Name), nil
+	}
+}
+
+func boxedType(t intermediate.Type) string {
+	switch t {
+	case intermediate.TypeInt:
+		return "Integer"
+	case intermediate.TypeBool:
+		return "Boolean"
+	default:
+		return string(t)
 	}
 }
 
@@ -147,7 +168,20 @@ func lowerStmt(st ast.Stmt) (intermediate.Stmt, error) {
 			if s.Tok == token.DEFINE {
 				typ = "var"
 			}
-			return &intermediate.AssignStmt{Name: lhs.Name, Type: typ, Value: rhs}, nil
+			knownArrayList := false
+			maybeNonArrayList := false
+			if call, ok := s.Rhs[0].(*ast.CallExpr); ok {
+				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "append" {
+					maybeNonArrayList = true
+				}
+			}
+			if _, ok := s.Rhs[0].(*ast.CompositeLit); ok {
+				knownArrayList = true
+			}
+			if _, ok := s.Rhs[0].(*ast.SliceExpr); ok {
+				maybeNonArrayList = true
+			}
+			return &intermediate.AssignStmt{Name: lhs.Name, Type: typ, Value: rhs, KnownArrayList: knownArrayList, MaybeNonArrayList: maybeNonArrayList}, nil
 		}
 		if lhs, ok := s.Lhs[0].(*ast.SelectorExpr); ok {
 			t, err := lowerExpr(lhs.X)
@@ -266,8 +300,16 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 		}
 		return &intermediate.SelectorExpr{Target: t, Field: e.Sel.Name}, nil
 	case *ast.CompositeLit:
-		name, ok := e.Type.(*ast.Ident)
-		if !ok {
+		typeName := ""
+		if name, ok := e.Type.(*ast.Ident); ok {
+			typeName = name.Name
+		} else if arr, ok := e.Type.(*ast.ArrayType); ok && arr.Len == nil {
+			et, err := lowerType(arr.Elt)
+			if err != nil {
+				return nil, err
+			}
+			typeName = "[]" + string(et)
+		} else {
 			return nil, fmt.Errorf("unsupported composite type %T", e.Type)
 		}
 		args := make([]intermediate.Expr, 0, len(e.Elts))
@@ -282,7 +324,26 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 			}
 			args = append(args, v)
 		}
-		return &intermediate.CompositeLiteral{TypeName: name.Name, Args: args}, nil
+		return &intermediate.CompositeLiteral{TypeName: typeName, Args: args}, nil
+	case *ast.SliceExpr:
+		t, err := lowerExpr(e.X)
+		if err != nil {
+			return nil, err
+		}
+		var low, high intermediate.Expr
+		if e.Low != nil {
+			low, err = lowerExpr(e.Low)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if e.High != nil {
+			high, err = lowerExpr(e.High)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return &intermediate.SliceExpr{Target: t, Low: low, High: high}, nil
 	}
 	return nil, fmt.Errorf("unsupported expression %T", ex)
 }

@@ -49,9 +49,11 @@ type ReturnStmt struct{ Value Expr }
 func (*ReturnStmt) isStmt() {}
 
 type AssignStmt struct {
-	Name  string
-	Type  Type
-	Value Expr
+	Name              string
+	Type              Type
+	Value             Expr
+	KnownArrayList    bool
+	MaybeNonArrayList bool
 }
 
 type FieldAssignStmt struct {
@@ -122,3 +124,11 @@ type CallExpr struct {
 }
 
 func (*CallExpr) isExpr() {}
+
+type SliceExpr struct {
+	Target Expr
+	Low    Expr
+	High   Expr
+}
+
+func (*SliceExpr) isExpr() {}
