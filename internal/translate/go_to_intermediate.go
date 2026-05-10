@@ -142,9 +142,9 @@ func lowerType(expr ast.Expr) (intermediate.Type, error) {
 	case "uint":
 		return intermediate.TypeInt, nil
 	case "uint8", "byte":
-		return intermediate.Type("byte"), nil
-	case "uint16":
 		return intermediate.Type("short"), nil
+	case "uint16":
+		return intermediate.TypeInt, nil
 	case "uint32":
 		return intermediate.TypeInt, nil
 	case "uint64":
@@ -288,7 +288,19 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 	case *ast.BasicLit:
 		switch e.Kind {
 		case token.INT:
-			return &intermediate.IntLiteral{Value: e.Value}, nil
+			v := e.Value
+			if currentTypesInfo != nil {
+				if tv, ok := currentTypesInfo.Types[e]; ok && tv.Type != nil {
+					if b, ok := tv.Type.Underlying().(*types.Basic); ok {
+						if b.Kind() == types.Int64 || b.Kind() == types.Uint64 || b.Kind() == types.Uintptr {
+							if v[len(v)-1] != 'L' && v[len(v)-1] != 'l' {
+								v += "L"
+							}
+						}
+					}
+				}
+			}
+			return &intermediate.IntLiteral{Value: v}, nil
 		case token.STRING:
 			return &intermediate.StringLiteral{Value: e.Value}, nil
 		}
@@ -309,7 +321,7 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		unsigned, wide := isUnsignedExpr(e)
+		unsigned, wide := isUnsignedExpr(e.X)
 		return &intermediate.BinaryExpr{Op: e.Op.String(), Left: l, Right: r, Unsigned: unsigned, Wide: wide}, nil
 	case *ast.CallExpr:
 		fn, err := lowerExpr(e.Fun)

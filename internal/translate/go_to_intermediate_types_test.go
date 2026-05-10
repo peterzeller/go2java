@@ -13,12 +13,12 @@ func TestLowerType_AllGoIntegerTypes(t *testing.T) {
 		"int32":   "int",
 		"int64":   "long",
 		"uint":    "int",
-		"uint8":   "byte",
-		"uint16":  "short",
+		"uint8":   "short",
+		"uint16":  "int",
 		"uint32":  "int",
 		"uint64":  "long",
 		"uintptr": "long",
-		"byte":    "byte",
+		"byte":    "short",
 		"rune":    "int",
 	}
 
@@ -40,8 +40,8 @@ func TestLowerType_AllGoIntegerTypes(t *testing.T) {
 func TestBoxedType_UnsignedUsesJavaBoxedPrimitives(t *testing.T) {
 	cases := map[string]string{
 		"uint":    "Integer",
-		"uint8":   "Byte",
-		"uint16":  "Short",
+		"uint8":   "Short",
+		"uint16":  "Integer",
 		"uint32":  "Integer",
 		"uint64":  "Long",
 		"uintptr": "Long",
