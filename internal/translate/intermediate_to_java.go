@@ -184,6 +184,34 @@ func exprToJava(ex intermediate.Expr, receiverName string, rec *intermediate.Rec
 	case *intermediate.BinaryExpr:
 		l, _ := exprToJava(e.Left, receiverName, rec, ctx)
 		r, _ := exprToJava(e.Right, receiverName, rec, ctx)
+		if e.Unsigned {
+			helper := "Integer"
+			if e.Wide {
+				helper = "Long"
+			}
+			switch e.Op {
+			case "<", "<=", ">", ">=", "==", "!=":
+				cmp := helper + ".compareUnsigned(" + l + ", " + r + ")"
+				switch e.Op {
+				case "<":
+					return "(" + cmp + " < 0)", nil
+				case "<=":
+					return "(" + cmp + " <= 0)", nil
+				case ">":
+					return "(" + cmp + " > 0)", nil
+				case ">=":
+					return "(" + cmp + " >= 0)", nil
+				case "==":
+					return "(" + cmp + " == 0)", nil
+				default:
+					return "(" + cmp + " != 0)", nil
+				}
+			case "/":
+				return helper + ".divideUnsigned(" + l + ", " + r + ")", nil
+			case "%":
+				return helper + ".remainderUnsigned(" + l + ", " + r + ")", nil
+			}
+		}
 		return "(" + l + " " + e.Op + " " + r + ")", nil
 	case *intermediate.CompositeLiteral:
 		args := []string{}

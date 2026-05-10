@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"go2java/internal/intermediate"
 	"go2java/internal/syntaxtree"
 )
 
+var currentTypesInfo *types.Info
+
 func GoToIntermediate(tree *syntaxtree.TypedFile) (*intermediate.Program, error) {
+	currentTypesInfo = tree.TypesInfo
+	defer func() { currentTypesInfo = nil }()
 	program := &intermediate.Program{PackageName: tree.File.Name.Name}
 	for _, decl := range tree.File.Decls {
 		switch d := decl.(type) {
@@ -304,7 +309,8 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &intermediate.BinaryExpr{Op: e.Op.String(), Left: l, Right: r}, nil
+		unsigned, wide := isUnsignedExpr(e)
+		return &intermediate.BinaryExpr{Op: e.Op.String(), Left: l, Right: r, Unsigned: unsigned, Wide: wide}, nil
 	case *ast.CallExpr:
 		fn, err := lowerExpr(e.Fun)
 		if err != nil {
@@ -390,4 +396,26 @@ func moveMethodsIntoRecords(p *intermediate.Program) {
 		fns = append(fns, fn)
 	}
 	p.Functions = fns
+}
+
+func isUnsignedExpr(ex ast.Expr) (unsigned bool, wide bool) {
+	if currentTypesInfo == nil {
+		return false, false
+	}
+	tv, ok := currentTypesInfo.Types[ex]
+	if !ok || tv.Type == nil {
+		return false, false
+	}
+	basic, ok := tv.Type.Underlying().(*types.Basic)
+	if !ok {
+		return false, false
+	}
+	switch basic.Kind() {
+	case types.Uint, types.Uint8, types.Uint16, types.Uint32:
+		return true, false
+	case types.Uint64, types.Uintptr:
+		return true, true
+	default:
+		return false, false
+	}
 }

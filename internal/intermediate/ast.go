@@ -84,6 +84,8 @@ func (*ForStmt) isStmt() {}
 type BinaryExpr struct {
 	Op          string
 	Left, Right Expr
+	Unsigned    bool
+	Wide        bool
 }
 
 func (*BinaryExpr) isExpr() {}
