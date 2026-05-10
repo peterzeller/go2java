@@ -1,4 +1,9 @@
 public class Vec2 {
+
+    private static String goFmt(Object o) {
+        if (o instanceof java.util.List<?> l) return l.toString().replace(", ", " ");
+        return String.valueOf(o);
+    }
     private int X;
     private int Y;
 
@@ -26,7 +31,7 @@ public class Vec2 {
         var b = new Vec2(3, 4);
         var c = a.plus(b);
         c.moveX(10);
-        System.out.println(c.getX());
-        System.out.println(c.getY());
+        System.out.println(goFmt(c.getX()));
+        System.out.println(goFmt(c.getY()));
     }
 }
