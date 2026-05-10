@@ -126,6 +126,26 @@ func lowerType(expr ast.Expr) (intermediate.Type, error) {
 	switch id.Name {
 	case "int":
 		return intermediate.TypeInt, nil
+	case "int8":
+		return intermediate.Type("byte"), nil
+	case "int16":
+		return intermediate.Type("short"), nil
+	case "int32", "rune":
+		return intermediate.TypeInt, nil
+	case "int64":
+		return intermediate.Type("long"), nil
+	case "uint":
+		return intermediate.TypeInt, nil
+	case "uint8", "byte":
+		return intermediate.Type("byte"), nil
+	case "uint16":
+		return intermediate.Type("short"), nil
+	case "uint32":
+		return intermediate.TypeInt, nil
+	case "uint64":
+		return intermediate.Type("long"), nil
+	case "uintptr":
+		return intermediate.Type("long"), nil
 	case "string":
 		return intermediate.TypeString, nil
 	case "bool":
@@ -139,6 +159,12 @@ func boxedType(t intermediate.Type) string {
 	switch t {
 	case intermediate.TypeInt:
 		return "Integer"
+	case intermediate.Type("byte"):
+		return "Byte"
+	case intermediate.Type("short"):
+		return "Short"
+	case intermediate.Type("long"):
+		return "Long"
 	case intermediate.TypeBool:
 		return "Boolean"
 	default:
