@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"go2java/internal/intermediate"
 	"go2java/internal/syntaxtree"
 )
 
+var currentTypesInfo *types.Info
+
 func GoToIntermediate(tree *syntaxtree.TypedFile) (*intermediate.Program, error) {
+	currentTypesInfo = tree.TypesInfo
+	defer func() { currentTypesInfo = nil }()
 	program := &intermediate.Program{PackageName: tree.File.Name.Name}
 	for _, decl := range tree.File.Decls {
 		switch d := decl.(type) {
@@ -126,6 +131,26 @@ func lowerType(expr ast.Expr) (intermediate.Type, error) {
 	switch id.Name {
 	case "int":
 		return intermediate.TypeInt, nil
+	case "int8":
+		return intermediate.Type("byte"), nil
+	case "int16":
+		return intermediate.Type("short"), nil
+	case "int32", "rune":
+		return intermediate.TypeInt, nil
+	case "int64":
+		return intermediate.Type("long"), nil
+	case "uint":
+		return intermediate.TypeInt, nil
+	case "uint8", "byte":
+		return intermediate.Type("short"), nil
+	case "uint16":
+		return intermediate.TypeInt, nil
+	case "uint32":
+		return intermediate.TypeInt, nil
+	case "uint64":
+		return intermediate.Type("long"), nil
+	case "uintptr":
+		return intermediate.Type("long"), nil
 	case "string":
 		return intermediate.TypeString, nil
 	case "bool":
@@ -139,6 +164,12 @@ func boxedType(t intermediate.Type) string {
 	switch t {
 	case intermediate.TypeInt:
 		return "Integer"
+	case intermediate.Type("byte"):
+		return "Byte"
+	case intermediate.Type("short"):
+		return "Short"
+	case intermediate.Type("long"):
+		return "Long"
 	case intermediate.TypeBool:
 		return "Boolean"
 	default:
@@ -257,7 +288,19 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 	case *ast.BasicLit:
 		switch e.Kind {
 		case token.INT:
-			return &intermediate.IntLiteral{Value: e.Value}, nil
+			v := e.Value
+			if currentTypesInfo != nil {
+				if tv, ok := currentTypesInfo.Types[e]; ok && tv.Type != nil {
+					if b, ok := tv.Type.Underlying().(*types.Basic); ok {
+						if b.Kind() == types.Int64 || b.Kind() == types.Uint64 || b.Kind() == types.Uintptr {
+							if v[len(v)-1] != 'L' && v[len(v)-1] != 'l' {
+								v += "L"
+							}
+						}
+					}
+				}
+			}
+			return &intermediate.IntLiteral{Value: v}, nil
 		case token.STRING:
 			return &intermediate.StringLiteral{Value: e.Value}, nil
 		}
@@ -278,7 +321,8 @@ func lowerExpr(ex ast.Expr) (intermediate.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &intermediate.BinaryExpr{Op: e.Op.String(), Left: l, Right: r}, nil
+		unsigned, wide := isUnsignedExpr(e.X)
+		return &intermediate.BinaryExpr{Op: e.Op.String(), Left: l, Right: r, Unsigned: unsigned, Wide: wide}, nil
 	case *ast.CallExpr:
 		fn, err := lowerExpr(e.Fun)
 		if err != nil {
@@ -364,4 +408,26 @@ func moveMethodsIntoRecords(p *intermediate.Program) {
 		fns = append(fns, fn)
 	}
 	p.Functions = fns
+}
+
+func isUnsignedExpr(ex ast.Expr) (unsigned bool, wide bool) {
+	if currentTypesInfo == nil {
+		return false, false
+	}
+	tv, ok := currentTypesInfo.Types[ex]
+	if !ok || tv.Type == nil {
+		return false, false
+	}
+	basic, ok := tv.Type.Underlying().(*types.Basic)
+	if !ok {
+		return false, false
+	}
+	switch basic.Kind() {
+	case types.Uint, types.Uint8, types.Uint16, types.Uint32:
+		return true, false
+	case types.Uint64, types.Uintptr:
+		return true, true
+	default:
+		return false, false
+	}
 }
