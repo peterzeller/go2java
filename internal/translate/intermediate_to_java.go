@@ -154,9 +154,33 @@ func stmtToJava(st intermediate.Stmt, receiverName string, rec *intermediate.Rec
 		}
 		e, _ := exprToJava(s.Value, receiverName, rec, ctx)
 		return "return " + e + ";", nil
+	case *intermediate.IfStmt:
+		cond, _ := exprToJava(s.Cond, receiverName, rec, ctx)
+		thenBlock := renderStmtBlock(s.Then, receiverName, rec, ctx)
+		if len(s.Else) == 0 {
+			return "if (" + cond + ") {\n" + thenBlock + "        }", nil
+		}
+		elseBlock := renderStmtBlock(s.Else, receiverName, rec, ctx)
+		return "if (" + cond + ") {\n" + thenBlock + "        } else {\n" + elseBlock + "        }", nil
+	case *intermediate.ForStmt:
+		cond, _ := exprToJava(s.Cond, receiverName, rec, ctx)
+		body := renderStmtBlock(s.Body, receiverName, rec, ctx)
+		return "while (" + cond + ") {\n" + body + "        }", nil
 	default:
 		return "", fmt.Errorf("unsupported")
 	}
+}
+
+func renderStmtBlock(stmts []intermediate.Stmt, receiverName string, rec *intermediate.Record, ctx *renderCtx) string {
+	var b strings.Builder
+	for _, st := range stmts {
+		line, _ := stmtToJava(st, receiverName, rec, ctx)
+		parts := strings.Split(line, "\n")
+		for _, p := range parts {
+			b.WriteString("            " + p + "\n")
+		}
+	}
+	return b.String()
 }
 
 func exprToJava(ex intermediate.Expr, receiverName string, rec *intermediate.Record, ctx *renderCtx) (string, error) {
@@ -184,11 +208,46 @@ func exprToJava(ex intermediate.Expr, receiverName string, rec *intermediate.Rec
 	case *intermediate.BinaryExpr:
 		l, _ := exprToJava(e.Left, receiverName, rec, ctx)
 		r, _ := exprToJava(e.Right, receiverName, rec, ctx)
+		if e.Unsigned {
+			helper := "Integer"
+			if e.Wide {
+				helper = "Long"
+			}
+			switch e.Op {
+			case "<", "<=", ">", ">=", "==", "!=":
+				cmp := helper + ".compareUnsigned(" + l + ", " + r + ")"
+				switch e.Op {
+				case "<":
+					return "(" + cmp + " < 0)", nil
+				case "<=":
+					return "(" + cmp + " <= 0)", nil
+				case ">":
+					return "(" + cmp + " > 0)", nil
+				case ">=":
+					return "(" + cmp + " >= 0)", nil
+				case "==":
+					return "(" + cmp + " == 0)", nil
+				default:
+					return "(" + cmp + " != 0)", nil
+				}
+			case "/":
+				return helper + ".divideUnsigned(" + l + ", " + r + ")", nil
+			case "%":
+				return helper + ".remainderUnsigned(" + l + ", " + r + ")", nil
+			}
+		}
 		return "(" + l + " " + e.Op + " " + r + ")", nil
 	case *intermediate.CompositeLiteral:
 		args := []string{}
+		elemCast := ""
+		if strings.HasPrefix(e.TypeName, "[]") {
+			elemCast = strings.TrimPrefix(e.TypeName, "[]")
+		}
 		for _, a := range e.Args {
 			aa, _ := exprToJava(a, receiverName, rec, ctx)
+			if elemCast == "short" || elemCast == "byte" || elemCast == "long" {
+				aa = "(" + elemCast + ")" + aa
+			}
 			args = append(args, aa)
 		}
 		if strings.HasPrefix(e.TypeName, "[]") {
@@ -229,6 +288,13 @@ func exprToJava(ex intermediate.Expr, receiverName string, rec *intermediate.Rec
 			high, _ = exprToJava(e.High, receiverName, rec, ctx)
 		}
 		return t + ".subList(" + low + ", " + high + ")", nil
+	case *intermediate.IndexExpr:
+		t, _ := exprToJava(e.Target, receiverName, rec, ctx)
+		idx, _ := exprToJava(e.Index, receiverName, rec, ctx)
+		return t + ".get(" + idx + ")", nil
+	case *intermediate.UnaryExpr:
+		x, _ := exprToJava(e.X, receiverName, rec, ctx)
+		return "(" + e.Op + x + ")", nil
 	}
 	return "", fmt.Errorf("unsupported")
 }
