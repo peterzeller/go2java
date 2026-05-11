@@ -41,12 +41,16 @@ public class Main {
         return 65535;
     }
 
-    public static int fu32() {
-        return 0x80000000;
+    public static int fu32one() {
+        return 1;
     }
 
-    public static long fu64() {
-        return 0x8000000000000000L;
+    public static int fu32two() {
+        return 2;
+    }
+
+    public static int fu32high() {
+        return 0x80000000;
     }
 
     public static long fup() {
@@ -68,26 +72,41 @@ public class Main {
         System.out.println(goFmt((Integer.compareUnsigned(a, b) >= 0)));
     }
 
-    public static void ops32(int a, int b) {
-        System.out.println(goFmt(Integer.divideUnsigned(a, b)));
-        System.out.println(goFmt(Integer.remainderUnsigned(a, b)));
-        System.out.println(goFmt((Integer.compareUnsigned(a, b) < 0)));
-        System.out.println(goFmt((Integer.compareUnsigned(a, b) <= 0)));
-        System.out.println(goFmt((Integer.compareUnsigned(a, b) > 0)));
-        System.out.println(goFmt((Integer.compareUnsigned(a, b) >= 0)));
-        System.out.println(goFmt((Integer.compareUnsigned(a, b) == 0)));
-        System.out.println(goFmt((Integer.compareUnsigned(a, b) != 0)));
-    }
-
-    public static void ops64(long x, long y) {
-        System.out.println(goFmt(Long.divideUnsigned(x, y)));
-        System.out.println(goFmt(Long.remainderUnsigned(x, y)));
-        System.out.println(goFmt((Long.compareUnsigned(x, y) < 0)));
-        System.out.println(goFmt((Long.compareUnsigned(x, y) <= 0)));
-        System.out.println(goFmt((Long.compareUnsigned(x, y) > 0)));
-        System.out.println(goFmt((Long.compareUnsigned(x, y) >= 0)));
-        System.out.println(goFmt((Long.compareUnsigned(x, y) == 0)));
-        System.out.println(goFmt((Long.compareUnsigned(x, y) != 0)));
+    public static void loopOps32() {
+        var i = 0;
+        while ((i < 3)) {
+            var a = fu32one();
+            if ((i == 1)) {
+                        a = fu32two();
+                    }
+            if ((i == 2)) {
+                        a = fu32high();
+                    }
+            var j = 0;
+            while ((j < 3)) {
+                        var b = fu32one();
+                        if ((j == 1)) {
+                                    b = fu32two();
+                                }
+                        if ((j == 2)) {
+                                    b = fu32high();
+                                }
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) < 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) <= 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) > 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) >= 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) == 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) != 0)));
+                        if ((i < 2)) {
+                                    if ((j < 2)) {
+                                                System.out.println(goFmt(Integer.divideUnsigned(a, b)));
+                                                System.out.println(goFmt(Integer.remainderUnsigned(a, b)));
+                                            }
+                                }
+                        j = (j + 1);
+                    }
+            i = (i + 1);
+        }
     }
 
     public static void main(String[] args) {
@@ -104,7 +123,6 @@ public class Main {
         System.out.println(goFmt(fr()));
         ops8(fu8one(), fu8());
         ops8(fu8(), fu8one());
-        ops32(0x80000000, 2);
-        ops64(0x8000000000000000L, 3L);
+        loopOps32();
     }
 }

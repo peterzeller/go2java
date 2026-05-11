@@ -154,9 +154,33 @@ func stmtToJava(st intermediate.Stmt, receiverName string, rec *intermediate.Rec
 		}
 		e, _ := exprToJava(s.Value, receiverName, rec, ctx)
 		return "return " + e + ";", nil
+	case *intermediate.IfStmt:
+		cond, _ := exprToJava(s.Cond, receiverName, rec, ctx)
+		thenBlock := renderStmtBlock(s.Then, receiverName, rec, ctx)
+		if len(s.Else) == 0 {
+			return "if (" + cond + ") {\n" + thenBlock + "        }", nil
+		}
+		elseBlock := renderStmtBlock(s.Else, receiverName, rec, ctx)
+		return "if (" + cond + ") {\n" + thenBlock + "        } else {\n" + elseBlock + "        }", nil
+	case *intermediate.ForStmt:
+		cond, _ := exprToJava(s.Cond, receiverName, rec, ctx)
+		body := renderStmtBlock(s.Body, receiverName, rec, ctx)
+		return "while (" + cond + ") {\n" + body + "        }", nil
 	default:
 		return "", fmt.Errorf("unsupported")
 	}
+}
+
+func renderStmtBlock(stmts []intermediate.Stmt, receiverName string, rec *intermediate.Record, ctx *renderCtx) string {
+	var b strings.Builder
+	for _, st := range stmts {
+		line, _ := stmtToJava(st, receiverName, rec, ctx)
+		parts := strings.Split(line, "\n")
+		for _, p := range parts {
+			b.WriteString("            " + p + "\n")
+		}
+	}
+	return b.String()
 }
 
 func exprToJava(ex intermediate.Expr, receiverName string, rec *intermediate.Record, ctx *renderCtx) (string, error) {
