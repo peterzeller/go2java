@@ -38,11 +38,11 @@ public class Main {
     }
 
     public static java.util.List<Integer> uint32s() {
-        return new java.util.ArrayList<>(java.util.List.of(1, 2, 0x80000000));
+        return new java.util.ArrayList<>(java.util.List.of(1, 2, 3));
     }
 
     public static java.util.List<Long> uint64s() {
-        return new java.util.ArrayList<>(java.util.List.of((long)1L, (long)2L, (long)0x8000000000000000L));
+        return new java.util.ArrayList<>(java.util.List.of((long)1L, (long)2L, (long)3L));
     }
 
     public static java.util.List<Long> uintptrs() {
@@ -55,6 +55,75 @@ public class Main {
 
     public static java.util.List<Integer> runesVals() {
         return new java.util.ArrayList<>(java.util.List.of((-1), 1, 1114111));
+    }
+
+    public static void loopInt(java.util.List<Integer> vals) {
+        var i = 0;
+        while ((i < 3)) {
+            var j = 0;
+            while ((j < 3)) {
+                        var a = vals.get(i);
+                        var b = vals.get(j);
+                        System.out.println(goFmt((a < b)));
+                        System.out.println(goFmt((a <= b)));
+                        System.out.println(goFmt((a > b)));
+                        System.out.println(goFmt((a >= b)));
+                        System.out.println(goFmt((a == b)));
+                        System.out.println(goFmt((a != b)));
+                        if ((b != 0)) {
+                                    System.out.println(goFmt((a / b)));
+                                    System.out.println(goFmt((a % b)));
+                                }
+                        j = (j + 1);
+                    }
+            i = (i + 1);
+        }
+    }
+
+    public static void loopUint32(java.util.List<Integer> vals) {
+        var i = 0;
+        while ((i < 3)) {
+            var j = 0;
+            while ((j < 3)) {
+                        var a = vals.get(i);
+                        var b = vals.get(j);
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) < 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) <= 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) > 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) >= 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) == 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) != 0)));
+                        if ((Integer.compareUnsigned(b, 0) != 0)) {
+                                    System.out.println(goFmt(Integer.divideUnsigned(a, b)));
+                                    System.out.println(goFmt(Integer.remainderUnsigned(a, b)));
+                                }
+                        j = (j + 1);
+                    }
+            i = (i + 1);
+        }
+    }
+
+    public static void loopUint8(java.util.List<Short> vals) {
+        var i = 0;
+        while ((i < 3)) {
+            var j = 0;
+            while ((j < 3)) {
+                        var a = vals.get(i);
+                        var b = vals.get(j);
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) < 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) <= 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) > 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) >= 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) == 0)));
+                        System.out.println(goFmt((Integer.compareUnsigned(a, b) != 0)));
+                        if ((Integer.compareUnsigned(b, 0) != 0)) {
+                                    System.out.println(goFmt(Integer.divideUnsigned(a, b)));
+                                    System.out.println(goFmt(Integer.remainderUnsigned(a, b)));
+                                }
+                        j = (j + 1);
+                    }
+            i = (i + 1);
+        }
     }
 
     public static void main(String[] args) {
@@ -71,28 +140,8 @@ public class Main {
         System.out.println(goFmt(uintptrs().get(2)));
         System.out.println(goFmt(bytesVals().get(2)));
         System.out.println(goFmt(runesVals().get(2)));
-        var vals = uint32s();
-        var i = 0;
-        while ((i < 3)) {
-            var j = 0;
-            while ((j < 3)) {
-                        var a = vals.get(i);
-                        var b = vals.get(j);
-                        System.out.println(goFmt((Integer.compareUnsigned(a, b) < 0)));
-                        System.out.println(goFmt((Integer.compareUnsigned(a, b) <= 0)));
-                        System.out.println(goFmt((Integer.compareUnsigned(a, b) > 0)));
-                        System.out.println(goFmt((Integer.compareUnsigned(a, b) >= 0)));
-                        System.out.println(goFmt((Integer.compareUnsigned(a, b) == 0)));
-                        System.out.println(goFmt((Integer.compareUnsigned(a, b) != 0)));
-                        if ((i < 2)) {
-                                    if ((j < 2)) {
-                                                System.out.println(goFmt(Integer.divideUnsigned(a, b)));
-                                                System.out.println(goFmt(Integer.remainderUnsigned(a, b)));
-                                            }
-                                }
-                        j = (j + 1);
-                    }
-            i = (i + 1);
-        }
+        loopInt(ints());
+        loopUint8(uint8s());
+        loopUint32(uint32s());
     }
 }

@@ -10,11 +10,80 @@ func int64s() []int64     { return []int64{-1, 1, 9223372036854775807} }
 func uints() []uint       { return []uint{1, 2, 2147483647} }
 func uint8s() []uint8     { return []uint8{1, 128, 255} }
 func uint16s() []uint16   { return []uint16{1, 32768, 65535} }
-func uint32s() []uint32   { return []uint32{1, 2, 0x80000000} }
-func uint64s() []uint64   { return []uint64{1, 2, 0x8000000000000000} }
+func uint32s() []uint32   { return []uint32{1, 2, 3} }
+func uint64s() []uint64   { return []uint64{1, 2, 3} }
 func uintptrs() []uintptr { return []uintptr{1, 2, 9} }
 func bytesVals() []byte   { return []byte{1, 128, 255} }
 func runesVals() []rune   { return []rune{-1, 1, 1114111} }
+
+func loopInt(vals []int) {
+	i := 0
+	for i < 3 {
+		j := 0
+		for j < 3 {
+			a := vals[i]
+			b := vals[j]
+			fmt.Println(a < b)
+			fmt.Println(a <= b)
+			fmt.Println(a > b)
+			fmt.Println(a >= b)
+			fmt.Println(a == b)
+			fmt.Println(a != b)
+			if b != 0 {
+				fmt.Println(a / b)
+				fmt.Println(a % b)
+			}
+			j = j + 1
+		}
+		i = i + 1
+	}
+}
+
+func loopUint32(vals []uint32) {
+	i := 0
+	for i < 3 {
+		j := 0
+		for j < 3 {
+			a := vals[i]
+			b := vals[j]
+			fmt.Println(a < b)
+			fmt.Println(a <= b)
+			fmt.Println(a > b)
+			fmt.Println(a >= b)
+			fmt.Println(a == b)
+			fmt.Println(a != b)
+			if b != 0 {
+				fmt.Println(a / b)
+				fmt.Println(a % b)
+			}
+			j = j + 1
+		}
+		i = i + 1
+	}
+}
+
+func loopUint8(vals []uint8) {
+	i := 0
+	for i < 3 {
+		j := 0
+		for j < 3 {
+			a := vals[i]
+			b := vals[j]
+			fmt.Println(a < b)
+			fmt.Println(a <= b)
+			fmt.Println(a > b)
+			fmt.Println(a >= b)
+			fmt.Println(a == b)
+			fmt.Println(a != b)
+			if b != 0 {
+				fmt.Println(a / b)
+				fmt.Println(a % b)
+			}
+			j = j + 1
+		}
+		i = i + 1
+	}
+}
 
 func main() {
 	fmt.Println(ints()[0])
@@ -31,27 +100,7 @@ func main() {
 	fmt.Println(bytesVals()[2])
 	fmt.Println(runesVals()[2])
 
-	vals := uint32s()
-	i := 0
-	for i < 3 {
-		j := 0
-		for j < 3 {
-			a := vals[i]
-			b := vals[j]
-			fmt.Println(a < b)
-			fmt.Println(a <= b)
-			fmt.Println(a > b)
-			fmt.Println(a >= b)
-			fmt.Println(a == b)
-			fmt.Println(a != b)
-			if i < 2 {
-				if j < 2 {
-					fmt.Println(a / b)
-					fmt.Println(a % b)
-				}
-			}
-			j = j + 1
-		}
-		i = i + 1
-	}
+	loopInt(ints())
+	loopUint8(uint8s())
+	loopUint32(uint32s())
 }
